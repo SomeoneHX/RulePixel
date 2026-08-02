@@ -273,19 +273,16 @@ RulePixel 是静态站点，不需要后端服务或数据库。
 
 首次使用时，在仓库的 `Settings → Pages → Build and deployment` 中将 `Source` 设置为 `GitHub Actions`。
 
-由于这是项目 Pages，Vite 使用仓库名对应的子路径作为 `base`：
+GitHub Pages 构建时通过 `VITE_BASE` 设置项目子路径：
 
-```ts
-import { defineConfig } from 'vite'
-import vue from '@vitejs/plugin-vue'
-
-export default defineConfig({
-  base: '/RulePixel/',
-  plugins: [vue()],
-})
+```yaml
+env:
+  VITE_BASE: /RulePixel/
 ```
 
-如果未来改用自定义域名或用户 Pages 根路径，需要将 `base` 调整为 `/`，并同步调整部署配置。
+`vite.config.ts` 会读取这个变量。本地开发和未设置变量时默认使用 `/`。
+
+如果未来改用自定义域名或用户 Pages 根路径，只需要将 `VITE_BASE` 设置为 `/`，无需修改源码。
 
 ## 数据与隐私
 
