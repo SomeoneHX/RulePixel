@@ -10,6 +10,7 @@ export default {
   actions: {
     import: '导入',
     importText: '从文本导入',
+    ai: 'AI',
     copy: '复制',
     copied: '已复制',
     export: '导出',

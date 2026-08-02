@@ -10,6 +10,7 @@ export default {
   actions: {
     import: 'Import',
     importText: 'Import text',
+    ai: 'AI',
     copy: 'Copy',
     copied: 'Copied',
     export: 'Export',

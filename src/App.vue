@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
-  CircleHelp, Copy, Download, Eraser, FileText, ImagePlus, Languages, PaintBucket, Pencil, Redo2, RotateCcw, Trash2, TriangleAlert, Undo2, X,
+  Bot, CircleHelp, Copy, Download, Eraser, FileText, ImagePlus, Languages, PaintBucket, Pencil, Redo2, RotateCcw, Trash2, TriangleAlert, Undo2, X,
 } from 'lucide-vue-next'
 import { useEditorStore } from '@/stores/editor'
 import { setLocale } from '@/i18n'
@@ -134,6 +134,10 @@ function openTextImporter() {
   isTextImportOpen.value = true
 }
 
+function openAiGuide() {
+  window.open('https://www.luogu.com.cn/article/kh6ygljj', '_blank', 'noopener,noreferrer')
+}
+
 function closeTextImporter() {
   isTextImportOpen.value = false
 }
@@ -239,6 +243,7 @@ async function importImage(event: Event) {
 
       <div class="header-actions">
         <button class="action-button muted language-button" :title="t('language.switchTo')" @click="toggleLocale"><Languages :size="17" /><span>{{ locale === 'zh-CN' ? t('language.english') : t('language.chinese') }}</span></button>
+        <button class="action-button muted" :title="t('actions.ai')" @click="openAiGuide"><Bot :size="17" /><span>{{ t('actions.ai') }}</span></button>
         <button class="action-button muted" :title="t('actions.importText')" @click="openTextImporter"><FileText :size="17" /><span>{{ t('actions.importText') }}</span></button>
         <button class="action-button muted" :title="t('actions.import')" @click="openImporter"><ImagePlus :size="17" /><span>{{ t('actions.import') }}</span></button>
         <button class="action-button muted" :title="t('actions.copyLatex')" @click="copyLatex"><Copy :size="17" /><span>{{ copied ? t('actions.copied') : t('actions.copy') }}</span></button>
