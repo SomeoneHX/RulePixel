@@ -265,7 +265,15 @@ RulePixel 是静态站点，不需要后端服务或数据库。
 
 ### GitHub Pages
 
-如果部署到项目子路径，需要在 `vite.config.ts` 中设置对应的 `base`：
+项目已配置 GitHub Actions 自动部署到 GitHub Pages，线上地址为：
+
+<https://someonehx.github.io/RulePixel/>
+
+工作流文件为 `.github/workflows/deploy.yml`。每次推送到 `main` 分支后，工作流会自动执行依赖安装、生产构建和 Pages 部署，也可以在 GitHub Actions 页面手动触发。
+
+首次使用时，在仓库的 `Settings → Pages → Build and deployment` 中将 `Source` 设置为 `GitHub Actions`。
+
+由于这是项目 Pages，Vite 使用仓库名对应的子路径作为 `base`：
 
 ```ts
 import { defineConfig } from 'vite'
@@ -277,7 +285,7 @@ export default defineConfig({
 })
 ```
 
-如果部署到自定义域名或根路径，则不需要设置这个 `base`。
+如果未来改用自定义域名或用户 Pages 根路径，需要将 `base` 调整为 `/`，并同步调整部署配置。
 
 ## 数据与隐私
 
