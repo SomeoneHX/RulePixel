@@ -177,8 +177,7 @@ RulePixel 的像素行使用 LaTeX 的可选行距参数：
 ```text
 RulePixel/
 ├── public/
-│   ├── favicon.svg
-│   └── icons.svg
+│   └── favicon.svg
 ├── src/
 │   ├── i18n/
 │   │   ├── index.ts
