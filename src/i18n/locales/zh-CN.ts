@@ -32,6 +32,9 @@ export default {
     width: '宽度',
     height: '高度',
     ruleSize: '规则尺寸',
+    lineCorrection: '行间修正',
+    auto: '自动',
+    custom: '自定义',
   },
   preview: {
     title: '渲染预览',
@@ -39,6 +42,8 @@ export default {
   },
   output: {
     title: 'LaTeX 输出',
+    expandFunction: '展开函数',
+    expandHint: '部分编辑器会因函数展开数量过多而停止渲染，遇到问题请尝试打开',
   },
   language: {
     switchTo: '切换语言',

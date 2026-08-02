@@ -32,6 +32,9 @@ export default {
     width: 'Width',
     height: 'Height',
     ruleSize: 'Rule size',
+    lineCorrection: 'Line correction',
+    auto: 'Auto',
+    custom: 'Custom',
   },
   preview: {
     title: 'Rendered preview',
@@ -39,6 +42,8 @@ export default {
   },
   output: {
     title: 'LaTeX output',
+    expandFunction: 'Expand function',
+    expandHint: 'Some editors may stop rendering when too many function calls are used. Try enabling this if you encounter problems.',
   },
   language: {
     switchTo: 'Switch language',

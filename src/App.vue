@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import {
-  Copy, Download, Eraser, ImagePlus, Languages, PaintBucket, Pencil, Redo2, RotateCcw, Trash2, Undo2,
+  CircleHelp, Copy, Download, Eraser, ImagePlus, Languages, PaintBucket, Pencil, Redo2, RotateCcw, Trash2, Undo2,
 } from 'lucide-vue-next'
 import { useEditorStore } from '@/stores/editor'
 import { setLocale } from '@/i18n'
@@ -12,6 +12,7 @@ const { t, locale } = useI18n()
 const fileInput = ref<HTMLInputElement>()
 const isDrawing = ref(false)
 const copied = ref(false)
+const expandFunctions = ref(false)
 const draftWidth = ref(editor.width)
 const draftHeight = ref(editor.height)
 
@@ -25,11 +26,49 @@ const palette = [
   '29366f', '3b5dc9', '41a6f6', '73eff7', 'f4f4f4', '94b0c2', '566c86', '333c57',
 ]
 
+const lineCorrectionBySize: Record<number, number> = {
+  4: -8,
+  5: -7,
+  6: -6,
+  7: -5,
+  8: -4,
+  9: -4,
+  10: -4,
+  11: -4,
+  12: -4,
+  13: -3,
+  14: -3,
+  15: -3,
+  16: -3,
+  17: -3,
+  18: -3.5,
+}
+
+function getLineCorrection(size: number) {
+  return lineCorrectionBySize[size] ?? -3
+}
+
+const autoLineCorrection = ref(true)
+const customLineCorrection = ref(-4)
+const lineCorrection = computed<number>({
+  get: () => autoLineCorrection.value
+    ? getLineCorrection(editor.cellSize)
+    : customLineCorrection.value,
+  set: (value) => {
+    if (Number.isFinite(value)) customLineCorrection.value = Math.min(0, Math.max(-20, value))
+  },
+})
+
 const latexCode = computed(() => {
   const size = editor.cellSize
-  const gap = Math.max(1, Math.round(size * 0.44))
-  const rows = editor.grid.map((row) => row.map((color) => `\\px{${color}}`).join(' ') + ` \\\\[-${gap}pt]`)
-  return `$$\n\\newcommand{\\px}[1]{\\color{#1}{\\rule{${size}pt}{${size}pt}}}\n${rows.join('\n')}\n$$`
+  const pixel = (color: string) => expandFunctions.value
+    ? `\\color{${color}}{\\rule{${size}pt}{${size}pt}}`
+    : `\\px{${color}}`
+  const rows = editor.grid.map((row) => row.map(pixel).join(' ') + ` \\\\[${lineCorrection.value}pt]`)
+  const macro = expandFunctions.value
+    ? ''
+    : `\\newcommand{\\px}[1]{\\color{#1}{\\rule{${size}pt}{${size}pt}}}\n`
+  return `$$\n${macro}${rows.join('\n')}\n$$`
 })
 
 const cells = computed(() => editor.grid.flatMap((row, rowIndex) =>
@@ -60,6 +99,18 @@ function stopPaint() {
 
 function toggleLocale() {
   setLocale(locale.value === 'zh-CN' ? 'en' : 'zh-CN')
+}
+
+function toggleLineCorrectionMode() {
+  if (autoLineCorrection.value) customLineCorrection.value = getLineCorrection(editor.cellSize)
+  autoLineCorrection.value = !autoLineCorrection.value
+}
+
+function normalizeCustomLineCorrection() {
+  const value = Number(customLineCorrection.value)
+  customLineCorrection.value = Number.isFinite(value)
+    ? Math.min(0, Math.max(-20, value))
+    : getLineCorrection(editor.cellSize)
 }
 
 async function copyLatex() {
@@ -175,6 +226,13 @@ async function importImage(event: Event) {
           <label>{{ t('settings.width') }} <input v-model.number="draftWidth" type="number" min="4" max="40" @change="updateDimensions" /></label>
           <label>{{ t('settings.height') }} <input v-model.number="draftHeight" type="number" min="4" max="40" @change="updateDimensions" /></label>
           <label>{{ t('settings.ruleSize') }} <span class="input-unit"><input v-model.number="editor.cellSize" type="number" min="4" max="18" />pt</span></label>
+          <label class="line-correction-control">
+            <span>{{ t('settings.lineCorrection') }}</span>
+            <span class="line-correction-input">
+              <input v-model.number="lineCorrection" type="number" min="-20" max="0" step="0.5" :disabled="autoLineCorrection" @change="normalizeCustomLineCorrection" />pt
+            </span>
+            <button class="mode-toggle" type="button" :class="{ active: autoLineCorrection }" @click="toggleLineCorrectionMode">{{ autoLineCorrection ? t('settings.auto') : t('settings.custom') }}</button>
+          </label>
         </section>
 
         <section class="panel preview-panel">
@@ -185,7 +243,21 @@ async function importImage(event: Event) {
     </section>
 
     <section class="code-section">
-      <div class="code-heading"><span>{{ t('output.title') }}</span><button class="text-button" @click="copyLatex"><Copy :size="14" /> {{ copied ? t('actions.copiedToClipboard') : t('actions.copyCode') }}</button></div>
+      <div class="code-heading">
+        <span>{{ t('output.title') }}</span>
+        <div class="code-actions">
+          <label class="expand-control">
+            <button class="expand-help" type="button" :aria-label="t('output.expandHint')">
+              <CircleHelp :size="14" />
+              <span class="expand-tooltip" role="tooltip">{{ t('output.expandHint') }}</span>
+            </button>
+            <span>{{ t('output.expandFunction') }}</span>
+            <input v-model="expandFunctions" type="checkbox" />
+            <span class="switch" aria-hidden="true"></span>
+          </label>
+          <button class="text-button" @click="copyLatex"><Copy :size="14" /> {{ copied ? t('actions.copiedToClipboard') : t('actions.copyCode') }}</button>
+        </div>
+      </div>
       <pre><code>{{ latexCode }}</code></pre>
     </section>
   </main>
