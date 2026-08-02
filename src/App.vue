@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
-  CircleHelp, Copy, Download, Eraser, ImagePlus, Languages, PaintBucket, Pencil, Redo2, RotateCcw, Trash2, TriangleAlert, Undo2,
+  CircleHelp, Copy, Download, Eraser, FileText, ImagePlus, Languages, PaintBucket, Pencil, Redo2, RotateCcw, Trash2, TriangleAlert, Undo2, X,
 } from 'lucide-vue-next'
 import { useEditorStore } from '@/stores/editor'
 import { setLocale } from '@/i18n'
 import { useI18n } from 'vue-i18n'
+import { parseLatexToCanvas, type ParsedLatex } from '@/utils/latex'
 
 const editor = useEditorStore()
 const { t, locale } = useI18n()
@@ -13,10 +14,13 @@ const fileInput = ref<HTMLInputElement>()
 const isDrawing = ref(false)
 const copied = ref(false)
 const expandFunctions = ref(false)
+const isTextImportOpen = ref(false)
+const latexInput = ref('')
 const draftWidth = ref(editor.width)
 const draftHeight = ref(editor.height)
 const totalPixels = computed(() => editor.width * editor.height)
 const shouldWarnForLargeExport = computed(() => totalPixels.value >= 1225)
+const parsedLatex = computed(() => parseLatexToCanvas(latexInput.value))
 
 watch(() => [editor.width, editor.height], ([width, height]) => {
   draftWidth.value = width
@@ -125,6 +129,31 @@ function toggleLocale() {
   setLocale(locale.value === 'zh-CN' ? 'en' : 'zh-CN')
 }
 
+function openTextImporter() {
+  latexInput.value = ''
+  isTextImportOpen.value = true
+}
+
+function closeTextImporter() {
+  isTextImportOpen.value = false
+}
+
+function applyParsedCanvas(parsed: ParsedLatex) {
+  editor.replaceGrid(parsed.grid, parsed.width, parsed.height)
+  editor.cellSize = parsed.cellSize
+  if (parsed.lineCorrection === getLineCorrection(parsed.cellSize)) {
+    autoLineCorrection.value = true
+  } else {
+    autoLineCorrection.value = false
+    customLineCorrection.value = parsed.lineCorrection
+  }
+  closeTextImporter()
+}
+
+function importTextCanvas() {
+  if (parsedLatex.value.ok) applyParsedCanvas(parsedLatex.value.value)
+}
+
 function toggleLineCorrectionMode() {
   if (autoLineCorrection.value) customLineCorrection.value = getLineCorrection(editor.cellSize)
   autoLineCorrection.value = !autoLineCorrection.value
@@ -210,6 +239,7 @@ async function importImage(event: Event) {
 
       <div class="header-actions">
         <button class="action-button muted language-button" :title="t('language.switchTo')" @click="toggleLocale"><Languages :size="17" /><span>{{ locale === 'zh-CN' ? t('language.english') : t('language.chinese') }}</span></button>
+        <button class="action-button muted" :title="t('actions.importText')" @click="openTextImporter"><FileText :size="17" /><span>{{ t('actions.importText') }}</span></button>
         <button class="action-button muted" :title="t('actions.import')" @click="openImporter"><ImagePlus :size="17" /><span>{{ t('actions.import') }}</span></button>
         <button class="action-button muted" :title="t('actions.copyLatex')" @click="copyLatex"><Copy :size="17" /><span>{{ copied ? t('actions.copied') : t('actions.copy') }}</span></button>
         <button class="action-button primary" :title="t('actions.download')" @click="downloadLatex"><Download :size="17" /><span>{{ t('actions.export') }}</span></button>
@@ -290,5 +320,26 @@ async function importImage(event: Event) {
       </div>
       <pre><code>{{ latexCode }}</code></pre>
     </section>
+
+    <div v-if="isTextImportOpen" class="modal-backdrop" @click.self="closeTextImporter">
+      <section class="text-import-modal" role="dialog" aria-modal="true" :aria-label="t('textImport.title')">
+        <div class="modal-heading">
+          <div><span class="modal-eyebrow"><FileText :size="14" /> TeX</span><h2>{{ t('textImport.title') }}</h2></div>
+          <button class="modal-close" type="button" :title="t('textImport.close')" @click="closeTextImporter"><X :size="18" /></button>
+        </div>
+        <p class="modal-instruction">{{ t('textImport.instruction') }}</p>
+        <textarea v-model="latexInput" class="latex-input" :placeholder="t('textImport.placeholder')" spellcheck="false"></textarea>
+        <div class="parse-status" :class="parsedLatex.ok ? 'valid' : 'invalid'" role="status">
+          <template v-if="parsedLatex.ok">
+            <span class="status-dot"></span>
+            <div><strong>{{ t('textImport.valid') }}</strong><span>{{ t('textImport.summary', { width: parsedLatex.value.width, height: parsedLatex.value.height, cellSize: parsedLatex.value.cellSize, correction: parsedLatex.value.lineCorrection }) }}</span></div>
+          </template>
+          <template v-else>
+            <TriangleAlert :size="16" /><span>{{ parsedLatex.error }}</span>
+          </template>
+        </div>
+        <div class="modal-actions"><button class="action-button muted" type="button" @click="closeTextImporter">{{ t('textImport.cancel') }}</button><button class="action-button primary" type="button" :disabled="!parsedLatex.ok" @click="importTextCanvas">{{ t('textImport.import') }}</button></div>
+      </section>
+    </div>
   </main>
 </template>

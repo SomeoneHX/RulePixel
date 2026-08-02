@@ -9,6 +9,7 @@ export default {
   },
   actions: {
     import: '导入',
+    importText: '从文本导入',
     copy: '复制',
     copied: '已复制',
     export: '导出',
@@ -45,6 +46,16 @@ export default {
     title: 'LaTeX 输出',
     expandFunction: '展开函数',
     expandHint: '部分编辑器会因函数展开数量过多而停止渲染，遇到问题请尝试打开',
+  },
+  textImport: {
+    title: '从 TeX 文本导入',
+    instruction: '请粘贴由 RulePixel 导出的 LaTeX 文本。支持使用 px 宏的代码，也支持展开函数后的完整 color 和 rule 代码。系统会自动识别画布大小、规则尺寸和行间修正。',
+    placeholder: '在此粘贴 TeX 文本...',
+    valid: '结构正确，可以导入',
+    summary: '画布 {width} × {height}，规则尺寸 {cellSize}pt，行间修正 {correction}pt',
+    cancel: '取消',
+    import: '导入画布',
+    close: '关闭文本导入',
   },
   language: {
     switchTo: '切换语言',

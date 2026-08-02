@@ -9,6 +9,7 @@ export default {
   },
   actions: {
     import: 'Import',
+    importText: 'Import text',
     copy: 'Copy',
     copied: 'Copied',
     export: 'Export',
@@ -45,6 +46,16 @@ export default {
     title: 'LaTeX output',
     expandFunction: 'Expand function',
     expandHint: 'Some editors may stop rendering when too many function calls are used. Try enabling this if you encounter problems.',
+  },
+  textImport: {
+    title: 'Import from TeX text',
+    instruction: 'Paste LaTeX exported by RulePixel. Both px macro code and fully expanded color and rule code are supported. Canvas size, rule size, and line correction are detected automatically.',
+    placeholder: 'Paste TeX text here...',
+    valid: 'Valid structure, ready to import',
+    summary: 'Canvas {width} × {height}, rule size {cellSize}pt, line correction {correction}pt',
+    cancel: 'Cancel',
+    import: 'Import canvas',
+    close: 'Close text importer',
   },
   language: {
     switchTo: 'Switch language',
