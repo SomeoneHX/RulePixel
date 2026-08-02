@@ -35,6 +35,7 @@ export default {
     lineCorrection: '行间修正',
     auto: '自动',
     custom: '自定义',
+    largeCanvasWarning: '当前画布包含 {count} 个像素。复制到部分富文本编辑器时可能触发 RangeError: Maximum call stack size exceeded。',
   },
   preview: {
     title: '渲染预览',

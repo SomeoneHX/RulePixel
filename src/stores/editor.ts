@@ -1,9 +1,14 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import type { HexColor, PixelGrid, Tool } from '@/types'
 
 const WHITE = 'ffffff'
 const HISTORY_LIMIT = 50
+const STORAGE_KEY = 'rulepixel-canvas'
+const DEFAULT_WIDTH = 16
+const DEFAULT_HEIGHT = 16
+const DEFAULT_CELL_SIZE = 9
+const DEFAULT_COLOR = 'e6484d'
 
 type CanvasSnapshot = {
   width: number
@@ -11,20 +16,63 @@ type CanvasSnapshot = {
   grid: PixelGrid
 }
 
+type SavedCanvas = CanvasSnapshot & {
+  cellSize: number
+  currentColor: HexColor
+  currentTool: Tool
+}
+
 const makeGrid = (width: number, height: number): PixelGrid =>
   Array.from({ length: height }, () => Array.from({ length: width }, () => WHITE))
 
 const cloneGrid = (grid: PixelGrid): PixelGrid => grid.map((row) => [...row])
 
+function isDimension(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 4 && value <= 40
+}
+
+function isHexColor(value: unknown): value is HexColor {
+  return typeof value === 'string' && /^[0-9a-f]{6}$/i.test(value)
+}
+
+function loadSavedCanvas(): SavedCanvas | null {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY)
+    if (!saved) return null
+    const data: unknown = JSON.parse(saved)
+    if (!data || typeof data !== 'object') return null
+    const canvas = data as Partial<SavedCanvas>
+    if (!isDimension(canvas.width) || !isDimension(canvas.height)) return null
+    if (typeof canvas.cellSize !== 'number' || canvas.cellSize < 4 || canvas.cellSize > 18) return null
+    if (!isHexColor(canvas.currentColor)) return null
+    if (canvas.currentTool !== 'pen' && canvas.currentTool !== 'eraser' && canvas.currentTool !== 'bucket') return null
+    if (!Array.isArray(canvas.grid) || canvas.grid.length !== canvas.height) return null
+    if (!canvas.grid.every((row) => Array.isArray(row) && row.length === canvas.width && row.every(isHexColor))) return null
+
+    return {
+      width: canvas.width,
+      height: canvas.height,
+      cellSize: canvas.cellSize,
+      currentColor: canvas.currentColor.toLowerCase(),
+      currentTool: canvas.currentTool,
+      grid: canvas.grid.map((row) => row.map((color) => color.toLowerCase())),
+    }
+  } catch {
+    return null
+  }
+}
+
 export const useEditorStore = defineStore('editor', () => {
-  const width = ref(16)
-  const height = ref(16)
-  const cellSize = ref(9)
-  const currentColor = ref<HexColor>('e6484d')
-  const currentTool = ref<Tool>('pen')
-  const grid = ref<PixelGrid>(makeGrid(width.value, height.value))
+  const savedCanvas = loadSavedCanvas()
+  const width = ref(savedCanvas?.width ?? DEFAULT_WIDTH)
+  const height = ref(savedCanvas?.height ?? DEFAULT_HEIGHT)
+  const cellSize = ref(savedCanvas?.cellSize ?? DEFAULT_CELL_SIZE)
+  const currentColor = ref<HexColor>(savedCanvas?.currentColor ?? DEFAULT_COLOR)
+  const currentTool = ref<Tool>(savedCanvas?.currentTool ?? 'pen')
+  const grid = ref<PixelGrid>(savedCanvas?.grid ?? makeGrid(width.value, height.value))
   const undoStack = ref<CanvasSnapshot[]>([])
   const redoStack = ref<CanvasSnapshot[]>([])
+  let saveQueued = false
 
   function snapshot(): CanvasSnapshot {
     return { width: width.value, height: height.value, grid: cloneGrid(grid.value) }
@@ -87,13 +135,14 @@ export const useEditorStore = defineStore('editor', () => {
   }
 
   function resetCanvas() {
-    const isDefault = width.value === 16 && height.value === 16
+    const isDefault = width.value === DEFAULT_WIDTH && height.value === DEFAULT_HEIGHT && cellSize.value === DEFAULT_CELL_SIZE
       && grid.value.every((row) => row.every((color) => color === WHITE))
     if (isDefault) return
     saveHistory()
-    width.value = 16
-    height.value = 16
-    grid.value = makeGrid(16, 16)
+    width.value = DEFAULT_WIDTH
+    height.value = DEFAULT_HEIGHT
+    cellSize.value = DEFAULT_CELL_SIZE
+    grid.value = makeGrid(DEFAULT_WIDTH, DEFAULT_HEIGHT)
   }
 
   function restore(snapshotToRestore: CanvasSnapshot) {
@@ -115,6 +164,33 @@ export const useEditorStore = defineStore('editor', () => {
     undoStack.value.push(snapshot())
     restore(next)
   }
+
+  function persist() {
+    try {
+      const canvas: SavedCanvas = {
+        width: width.value,
+        height: height.value,
+        cellSize: cellSize.value,
+        currentColor: currentColor.value,
+        currentTool: currentTool.value,
+        grid: cloneGrid(grid.value),
+      }
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(canvas))
+    } catch {
+      // Storage can be unavailable or full; the editor remains usable without persistence.
+    }
+  }
+
+  function schedulePersist() {
+    if (saveQueued) return
+    saveQueued = true
+    queueMicrotask(() => {
+      saveQueued = false
+      persist()
+    })
+  }
+
+  watch([width, height, cellSize, currentColor, currentTool, grid], schedulePersist, { deep: true })
 
   return {
     width, height, cellSize, currentColor, currentTool, grid, undoStack, redoStack,

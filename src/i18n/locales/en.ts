@@ -35,6 +35,7 @@ export default {
     lineCorrection: 'Line correction',
     auto: 'Auto',
     custom: 'Custom',
+    largeCanvasWarning: 'This canvas contains {count} pixels. Pasting into some rich-text editors may trigger RangeError: Maximum call stack size exceeded.',
   },
   preview: {
     title: 'Rendered preview',

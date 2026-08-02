@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
-  CircleHelp, Copy, Download, Eraser, ImagePlus, Languages, PaintBucket, Pencil, Redo2, RotateCcw, Trash2, Undo2,
+  CircleHelp, Copy, Download, Eraser, ImagePlus, Languages, PaintBucket, Pencil, Redo2, RotateCcw, Trash2, TriangleAlert, Undo2,
 } from 'lucide-vue-next'
 import { useEditorStore } from '@/stores/editor'
 import { setLocale } from '@/i18n'
@@ -15,6 +15,8 @@ const copied = ref(false)
 const expandFunctions = ref(false)
 const draftWidth = ref(editor.width)
 const draftHeight = ref(editor.height)
+const totalPixels = computed(() => editor.width * editor.height)
+const shouldWarnForLargeExport = computed(() => totalPixels.value >= 1225)
 
 watch(() => [editor.width, editor.height], ([width, height]) => {
   draftWidth.value = width
@@ -96,6 +98,28 @@ function dragPaint(row: number, column: number) {
 function stopPaint() {
   isDrawing.value = false
 }
+
+function handleKeyboardShortcut(event: KeyboardEvent) {
+  const target = event.target as HTMLElement | null
+  if (target?.matches('input, textarea, select, [contenteditable="true"]')) return
+  if (!event.metaKey && !event.ctrlKey) return
+
+  const key = event.key.toLowerCase()
+  if (key === 'z') {
+    event.preventDefault()
+    if (event.shiftKey) editor.redo()
+    else editor.undo()
+    return
+  }
+
+  if (key === 'y' && event.ctrlKey) {
+    event.preventDefault()
+    editor.redo()
+  }
+}
+
+onMounted(() => window.addEventListener('keydown', handleKeyboardShortcut))
+onBeforeUnmount(() => window.removeEventListener('keydown', handleKeyboardShortcut))
 
 function toggleLocale() {
   setLocale(locale.value === 'zh-CN' ? 'en' : 'zh-CN')
@@ -233,6 +257,10 @@ async function importImage(event: Event) {
             </span>
             <button class="mode-toggle" type="button" :class="{ active: autoLineCorrection }" @click="toggleLineCorrectionMode">{{ autoLineCorrection ? t('settings.auto') : t('settings.custom') }}</button>
           </label>
+          <div v-if="shouldWarnForLargeExport" class="large-canvas-warning" role="alert">
+            <TriangleAlert :size="16" aria-hidden="true" />
+            <span>{{ t('settings.largeCanvasWarning', { count: totalPixels.toLocaleString() }) }}</span>
+          </div>
         </section>
 
         <section class="panel preview-panel">
@@ -246,15 +274,17 @@ async function importImage(event: Event) {
       <div class="code-heading">
         <span>{{ t('output.title') }}</span>
         <div class="code-actions">
-          <label class="expand-control">
+          <div class="expand-control">
             <button class="expand-help" type="button" :aria-label="t('output.expandHint')">
               <CircleHelp :size="14" />
               <span class="expand-tooltip" role="tooltip">{{ t('output.expandHint') }}</span>
             </button>
+            <label class="expand-toggle">
             <span>{{ t('output.expandFunction') }}</span>
             <input v-model="expandFunctions" type="checkbox" />
             <span class="switch" aria-hidden="true"></span>
-          </label>
+            </label>
+          </div>
           <button class="text-button" @click="copyLatex"><Copy :size="14" /> {{ copied ? t('actions.copiedToClipboard') : t('actions.copyCode') }}</button>
         </div>
       </div>
