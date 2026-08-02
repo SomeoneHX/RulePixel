@@ -5,6 +5,12 @@ import type { HexColor, PixelGrid, Tool } from '@/types'
 const WHITE = 'ffffff'
 const HISTORY_LIMIT = 50
 
+type CanvasSnapshot = {
+  width: number
+  height: number
+  grid: PixelGrid
+}
+
 const makeGrid = (width: number, height: number): PixelGrid =>
   Array.from({ length: height }, () => Array.from({ length: width }, () => WHITE))
 
@@ -17,11 +23,15 @@ export const useEditorStore = defineStore('editor', () => {
   const currentColor = ref<HexColor>('e6484d')
   const currentTool = ref<Tool>('pen')
   const grid = ref<PixelGrid>(makeGrid(width.value, height.value))
-  const undoStack = ref<PixelGrid[]>([])
-  const redoStack = ref<PixelGrid[]>([])
+  const undoStack = ref<CanvasSnapshot[]>([])
+  const redoStack = ref<CanvasSnapshot[]>([])
+
+  function snapshot(): CanvasSnapshot {
+    return { width: width.value, height: height.value, grid: cloneGrid(grid.value) }
+  }
 
   function saveHistory() {
-    undoStack.value.push(cloneGrid(grid.value))
+    undoStack.value.push(snapshot())
     if (undoStack.value.length > HISTORY_LIMIT) undoStack.value.shift()
     redoStack.value = []
   }
@@ -76,22 +86,38 @@ export const useEditorStore = defineStore('editor', () => {
     grid.value = makeGrid(width.value, height.value)
   }
 
+  function resetCanvas() {
+    const isDefault = width.value === 16 && height.value === 16
+      && grid.value.every((row) => row.every((color) => color === WHITE))
+    if (isDefault) return
+    saveHistory()
+    width.value = 16
+    height.value = 16
+    grid.value = makeGrid(16, 16)
+  }
+
+  function restore(snapshotToRestore: CanvasSnapshot) {
+    width.value = snapshotToRestore.width
+    height.value = snapshotToRestore.height
+    grid.value = cloneGrid(snapshotToRestore.grid)
+  }
+
   function undo() {
     const previous = undoStack.value.pop()
     if (!previous) return
-    redoStack.value.push(cloneGrid(grid.value))
-    grid.value = previous
+    redoStack.value.push(snapshot())
+    restore(previous)
   }
 
   function redo() {
     const next = redoStack.value.pop()
     if (!next) return
-    undoStack.value.push(cloneGrid(grid.value))
-    grid.value = next
+    undoStack.value.push(snapshot())
+    restore(next)
   }
 
   return {
     width, height, cellSize, currentColor, currentTool, grid, undoStack, redoStack,
-    setPixel, fillArea, replaceGrid, resizeCanvas, clearAll, undo, redo,
+    setPixel, fillArea, replaceGrid, resizeCanvas, clearAll, resetCanvas, undo, redo,
   }
 })

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import {
   Copy, Download, Eraser, ImagePlus, Languages, PaintBucket, Pencil, Redo2, RotateCcw, Trash2, Undo2,
 } from 'lucide-vue-next'
@@ -12,6 +12,13 @@ const { t, locale } = useI18n()
 const fileInput = ref<HTMLInputElement>()
 const isDrawing = ref(false)
 const copied = ref(false)
+const draftWidth = ref(editor.width)
+const draftHeight = ref(editor.height)
+
+watch(() => [editor.width, editor.height], ([width, height]) => {
+  draftWidth.value = width
+  draftHeight.value = height
+})
 
 const palette = [
   '1a1c2c', '5d275d', 'b13e53', 'ef7d57', 'ffcd75', 'a7f070', '38b764', '257179',
@@ -72,7 +79,9 @@ function downloadLatex() {
 }
 
 function updateDimensions() {
-  editor.resizeCanvas(editor.width, editor.height)
+  editor.resizeCanvas(draftWidth.value, draftHeight.value)
+  draftWidth.value = editor.width
+  draftHeight.value = editor.height
 }
 
 function openImporter() {
@@ -149,7 +158,7 @@ async function importImage(event: Event) {
             ></button>
           </div>
         </div>
-        <div class="canvas-footer"><span>{{ t('canvas.instruction') }}</span><button class="text-button" @click="editor.clearAll"><RotateCcw :size="14" /> {{ t('actions.reset') }}</button></div>
+        <div class="canvas-footer"><span>{{ t('canvas.instruction') }}</span><button class="text-button" @click="editor.resetCanvas(); draftWidth = editor.width; draftHeight = editor.height"><RotateCcw :size="14" /> {{ t('actions.reset') }}</button></div>
       </div>
 
       <aside class="inspector">
@@ -163,8 +172,8 @@ async function importImage(event: Event) {
 
         <section class="panel settings-panel">
           <div class="section-heading"><span>{{ t('settings.title') }}</span></div>
-          <label>{{ t('settings.width') }} <input v-model.number="editor.width" type="number" min="4" max="40" @change="updateDimensions" /></label>
-          <label>{{ t('settings.height') }} <input v-model.number="editor.height" type="number" min="4" max="40" @change="updateDimensions" /></label>
+          <label>{{ t('settings.width') }} <input v-model.number="draftWidth" type="number" min="4" max="40" @change="updateDimensions" /></label>
+          <label>{{ t('settings.height') }} <input v-model.number="draftHeight" type="number" min="4" max="40" @change="updateDimensions" /></label>
           <label>{{ t('settings.ruleSize') }} <span class="input-unit"><input v-model.number="editor.cellSize" type="number" min="4" max="18" />pt</span></label>
         </section>
 
