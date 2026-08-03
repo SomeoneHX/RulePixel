@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
-  Bot, CircleHelp, Copy, Download, Eraser, FileText, ImagePlus, Languages, PaintBucket, Pencil, Redo2, RotateCcw, Trash2, TriangleAlert, Undo2, X,
+  Bot, CircleHelp, ClipboardPaste, Copy, Download, Eraser, FileText, ImagePlus, Languages, PaintBucket, Pencil, Redo2, RotateCcw, Trash2, TriangleAlert, Undo2, Upload, X,
 } from 'lucide-vue-next'
 import { useEditorStore } from '@/stores/editor'
 import { setLocale } from '@/i18n'
@@ -15,6 +15,14 @@ const isDrawing = ref(false)
 const copied = ref(false)
 const expandFunctions = ref(false)
 const isTextImportOpen = ref(false)
+const isImageImportOpen = ref(false)
+const isImageDragging = ref(false)
+const imageImportError = ref('')
+const imageFile = ref<File | null>(null)
+const imagePreviewUrl = ref('')
+const imageImportSize = ref<{ width: number; height: number } | null>(null)
+const imageImportGrid = ref<string[][] | null>(null)
+const autoResizeImageCanvas = ref(true)
 const latexInput = ref('')
 const draftWidth = ref(editor.width)
 const draftHeight = ref(editor.height)
@@ -122,8 +130,19 @@ function handleKeyboardShortcut(event: KeyboardEvent) {
   }
 }
 
-onMounted(() => window.addEventListener('keydown', handleKeyboardShortcut))
-onBeforeUnmount(() => window.removeEventListener('keydown', handleKeyboardShortcut))
+function handleWindowPaste(event: ClipboardEvent) {
+  if (isImageImportOpen.value) handleImagePaste(event)
+}
+
+onMounted(() => {
+  window.addEventListener('keydown', handleKeyboardShortcut)
+  window.addEventListener('paste', handleWindowPaste)
+})
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', handleKeyboardShortcut)
+  window.removeEventListener('paste', handleWindowPaste)
+  if (imagePreviewUrl.value) URL.revokeObjectURL(imagePreviewUrl.value)
+})
 
 function toggleLocale() {
   setLocale(locale.value === 'zh-CN' ? 'en' : 'zh-CN')
@@ -156,6 +175,28 @@ function applyParsedCanvas(parsed: ParsedLatex) {
 
 function importTextCanvas() {
   if (parsedLatex.value.ok) applyParsedCanvas(parsedLatex.value.value)
+}
+
+function openImageImporter() {
+  imageImportError.value = ''
+  imageFile.value = null
+  imageImportSize.value = null
+  imageImportGrid.value = null
+  autoResizeImageCanvas.value = true
+  if (imagePreviewUrl.value) URL.revokeObjectURL(imagePreviewUrl.value)
+  imagePreviewUrl.value = ''
+  isImageImportOpen.value = true
+}
+
+function closeImageImporter() {
+  isImageImportOpen.value = false
+  isImageDragging.value = false
+  imageFile.value = null
+  imageImportSize.value = null
+  imageImportGrid.value = null
+  if (imagePreviewUrl.value) URL.revokeObjectURL(imagePreviewUrl.value)
+  imagePreviewUrl.value = ''
+  if (fileInput.value) fileInput.value.value = ''
 }
 
 function toggleLineCorrectionMode() {
@@ -192,34 +233,85 @@ function updateDimensions() {
   draftHeight.value = editor.height
 }
 
-function openImporter() {
+function chooseImageFile() {
   fileInput.value?.click()
 }
 
-async function importImage(event: Event) {
+async function prepareImage(file: File) {
+  if (!file.type.startsWith('image/')) {
+    imageImportError.value = t('imageImport.invalidType')
+    return
+  }
+
+  imageImportError.value = ''
+  imageFile.value = file
+  imageImportSize.value = null
+  imageImportGrid.value = null
+  if (imagePreviewUrl.value) URL.revokeObjectURL(imagePreviewUrl.value)
+  imagePreviewUrl.value = URL.createObjectURL(file)
+
+  try {
+    const bitmap = await createImageBitmap(file)
+    const width = autoResizeImageCanvas.value ? Math.max(4, Math.min(40, bitmap.width)) : editor.width
+    const height = autoResizeImageCanvas.value ? Math.max(4, Math.min(40, bitmap.height)) : editor.height
+    const canvas = document.createElement('canvas')
+    canvas.width = width
+    canvas.height = height
+    const context = canvas.getContext('2d', { willReadFrequently: true })
+    if (!context) throw new Error('Canvas context unavailable')
+    context.imageSmoothingEnabled = false
+    context.fillStyle = '#ffffff'
+    context.fillRect(0, 0, width, height)
+    context.drawImage(bitmap, 0, 0, width, height)
+    const data = context.getImageData(0, 0, width, height).data
+    imageImportGrid.value = Array.from({ length: height }, (_, row) =>
+      Array.from({ length: width }, (_, column) => {
+        const offset = (row * width + column) * 4
+        const alpha = data[offset + 3] / 255
+        const channel = (index: number) => Math.round(data[offset + index] * alpha + 255 * (1 - alpha)).toString(16).padStart(2, '0')
+        return `${channel(0)}${channel(1)}${channel(2)}`
+      }),
+    )
+    imageImportSize.value = { width, height }
+    bitmap.close()
+  } catch {
+    imageImportError.value = t('imageImport.invalidImage')
+    imageFile.value = null
+  }
+}
+
+function toggleImageCanvasResize() {
+  autoResizeImageCanvas.value = !autoResizeImageCanvas.value
+  if (imageFile.value) void prepareImage(imageFile.value)
+}
+
+function importImage(event: Event) {
   const file = (event.target as HTMLInputElement).files?.[0]
-  if (!file) return
-  const bitmap = await createImageBitmap(file)
-  const canvas = document.createElement('canvas')
-  canvas.width = editor.width
-  canvas.height = editor.height
-  const context = canvas.getContext('2d', { willReadFrequently: true })
-  if (!context) return
-  context.imageSmoothingEnabled = false
-  context.fillStyle = '#ffffff'
-  context.fillRect(0, 0, canvas.width, canvas.height)
-  context.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
-  const data = context.getImageData(0, 0, canvas.width, canvas.height).data
-  const nextGrid = Array.from({ length: canvas.height }, (_, row) =>
-    Array.from({ length: canvas.width }, (_, column) => {
-      const offset = (row * canvas.width + column) * 4
-      const alpha = data[offset + 3] / 255
-      const channel = (index: number) => Math.round(data[offset + index] * alpha + 255 * (1 - alpha)).toString(16).padStart(2, '0')
-      return `${channel(0)}${channel(1)}${channel(2)}`
-    }),
-  )
-  editor.replaceGrid(nextGrid)
-  ;(event.target as HTMLInputElement).value = ''
+  if (file) void prepareImage(file)
+}
+
+function handleImageDrop(event: DragEvent) {
+  isImageDragging.value = false
+  const file = event.dataTransfer?.files?.[0]
+  if (file) void prepareImage(file)
+}
+
+function handleImagePaste(event: ClipboardEvent) {
+  const file = Array.from(event.clipboardData?.files ?? []).find((item) => item.type.startsWith('image/'))
+  if (file) {
+    event.preventDefault()
+    void prepareImage(file)
+  }
+}
+
+function importPreparedImage() {
+  if (!imageImportGrid.value || !imageImportSize.value) return
+  if (autoResizeImageCanvas.value) {
+    editor.replaceGrid(imageImportGrid.value, imageImportSize.value.width, imageImportSize.value.height)
+  } else {
+    editor.replaceGrid(imageImportGrid.value)
+  }
+  closeImageImporter()
 }
 </script>
 
@@ -245,11 +337,10 @@ async function importImage(event: Event) {
         <button class="action-button muted language-button" :title="t('language.switchTo')" @click="toggleLocale"><Languages :size="17" /><span>{{ locale === 'zh-CN' ? t('language.english') : t('language.chinese') }}</span></button>
         <button class="action-button muted" :title="t('actions.ai')" @click="openAiGuide"><Bot :size="17" /><span>{{ t('actions.ai') }}</span></button>
         <button class="action-button muted" :title="t('actions.importText')" @click="openTextImporter"><FileText :size="17" /><span>{{ t('actions.importText') }}</span></button>
-        <button class="action-button muted" :title="t('actions.import')" @click="openImporter"><ImagePlus :size="17" /><span>{{ t('actions.import') }}</span></button>
+         <button class="action-button muted" :title="t('actions.import')" @click="openImageImporter"><ImagePlus :size="17" /><span>{{ t('actions.import') }}</span></button>
         <button class="action-button muted" :title="t('actions.copyLatex')" @click="copyLatex"><Copy :size="17" /><span>{{ copied ? t('actions.copied') : t('actions.copy') }}</span></button>
         <button class="action-button primary" :title="t('actions.download')" @click="downloadLatex"><Download :size="17" /><span>{{ t('actions.export') }}</span></button>
-        <input ref="fileInput" class="visually-hidden" type="file" accept="image/*" @change="importImage" />
-      </div>
+       </div>
     </header>
 
     <section class="workspace">
@@ -326,7 +417,7 @@ async function importImage(event: Event) {
       <pre><code>{{ latexCode }}</code></pre>
     </section>
 
-    <div v-if="isTextImportOpen" class="modal-backdrop" @click.self="closeTextImporter">
+     <div v-if="isTextImportOpen" class="modal-backdrop" @click.self="closeTextImporter">
       <section class="text-import-modal" role="dialog" aria-modal="true" :aria-label="t('textImport.title')">
         <div class="modal-heading">
           <div><span class="modal-eyebrow"><FileText :size="14" /> TeX</span><h2>{{ t('textImport.title') }}</h2></div>
@@ -344,7 +435,46 @@ async function importImage(event: Event) {
           </template>
         </div>
         <div class="modal-actions"><button class="action-button muted" type="button" @click="closeTextImporter">{{ t('textImport.cancel') }}</button><button class="action-button primary" type="button" :disabled="!parsedLatex.ok" @click="importTextCanvas">{{ t('textImport.import') }}</button></div>
-      </section>
-    </div>
-  </main>
+       </section>
+     </div>
+
+     <div v-if="isImageImportOpen" class="modal-backdrop" @click.self="closeImageImporter">
+       <section class="text-import-modal image-import-modal" role="dialog" aria-modal="true" :aria-label="t('imageImport.title')">
+         <div class="modal-heading">
+           <div><span class="modal-eyebrow"><ImagePlus :size="14" /> Image</span><h2>{{ t('imageImport.title') }}</h2></div>
+           <button class="modal-close" type="button" :title="t('imageImport.close')" @click="closeImageImporter"><X :size="18" /></button>
+         </div>
+         <p class="modal-instruction">{{ t(autoResizeImageCanvas ? 'imageImport.instructionResize' : 'imageImport.instructionKeep') }}</p>
+         <button
+           class="image-dropzone"
+           :class="{ dragging: isImageDragging, 'has-image': imagePreviewUrl }"
+           type="button"
+           @click="chooseImageFile"
+           @dragover.prevent="isImageDragging = true"
+           @dragleave.prevent="isImageDragging = false"
+           @drop.prevent="handleImageDrop"
+         >
+           <img v-if="imagePreviewUrl" :src="imagePreviewUrl" :alt="t('imageImport.preview')" />
+           <template v-else>
+             <Upload :size="25" />
+             <strong>{{ t('imageImport.dropTitle') }}</strong>
+             <span>{{ t('imageImport.dropHint') }}</span>
+             <span class="image-paste-hint"><ClipboardPaste :size="14" /> {{ t('imageImport.pasteHint') }}</span>
+           </template>
+         </button>
+         <label class="image-resize-toggle">
+           <span>{{ t('imageImport.autoResize') }}</span>
+           <input :checked="autoResizeImageCanvas" type="checkbox" @change="toggleImageCanvasResize" />
+           <span class="switch" aria-hidden="true"></span>
+         </label>
+         <div v-if="imageImportSize && imageFile" class="parse-status valid" role="status">
+           <span class="status-dot"></span>
+           <div><strong>{{ t('imageImport.ready') }}</strong><span>{{ t(autoResizeImageCanvas ? 'imageImport.summaryResize' : 'imageImport.summaryKeep', { width: imageImportSize.width, height: imageImportSize.height }) }}</span></div>
+         </div>
+         <div v-else-if="imageImportError" class="parse-status invalid" role="alert"><TriangleAlert :size="16" /><span>{{ imageImportError }}</span></div>
+         <div class="modal-actions"><button class="action-button muted" type="button" @click="closeImageImporter">{{ t('imageImport.cancel') }}</button><button class="action-button primary" type="button" :disabled="!imageImportGrid" @click="importPreparedImage">{{ t('imageImport.import') }}</button></div>
+         <input ref="fileInput" class="visually-hidden" type="file" accept="image/*" @change="importImage" />
+       </section>
+     </div>
+   </main>
 </template>
