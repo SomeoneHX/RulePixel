@@ -111,6 +111,11 @@ function stopPaint() {
   isDrawing.value = false
 }
 
+function setCustomColor(event: Event) {
+  const color = (event.target as HTMLInputElement).value
+  if (/^#[0-9a-f]{6}$/i.test(color)) editor.currentColor = color.slice(1).toLowerCase()
+}
+
 function handleKeyboardShortcut(event: KeyboardEvent) {
   const target = event.target as HTMLElement | null
   if (target?.matches('input, textarea, select, [contenteditable="true"]')) return
@@ -365,7 +370,7 @@ function importPreparedImage() {
       <aside class="inspector">
         <section class="panel color-panel">
           <div class="section-heading"><span>{{ t('color.title') }}</span><span class="color-value">#{{ editor.currentColor }}</span></div>
-          <div class="color-control"><input v-model="editor.currentColor" type="color" :aria-label="t('color.custom')" /><div class="current-color" :style="{ backgroundColor: `#${editor.currentColor}` }"></div></div>
+          <div class="color-control"><input :value="`#${editor.currentColor}`" type="color" :aria-label="t('color.custom')" @input="setCustomColor" /><div class="current-color" :style="{ backgroundColor: `#${editor.currentColor}` }"></div></div>
           <div class="swatches">
             <button v-for="color in palette" :key="color" class="swatch" :class="{ selected: editor.currentColor === color }" :style="{ backgroundColor: `#${color}` }" :title="`#${color}`" @click="editor.currentColor = color"></button>
           </div>
